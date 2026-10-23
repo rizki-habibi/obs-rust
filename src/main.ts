@@ -15,7 +15,7 @@ app.innerHTML = `
     <section class="preview-column">
       <div class="section-head"><div><span class="eyebrow">KANVAS SIARAN</span><h1>Studio siaran</h1></div><span class="resolution">PRATINJAU · 16:9</span></div>
       <div class="preview-frame" id="previewFrame">
-        <video id="previewVideo" autoplay muted playsinline></video>
+        <video id="previewVideo" autoplay muted playsinline></video><div class="source-overlay" id="sourceOverlay"></div>
         <div class="empty-state" id="emptyState"><div class="empty-icon">▣</div><h2>Studio siap digunakan</h2><p>Tambahkan kamera atau bagikan layar untuk memulai pratinjau.</p><button class="button primary" id="quickCamera">＋ Aktifkan kamera</button></div>
         <div class="preview-label"><i></i> PRATINJAU LOKAL</div><div class="canvas-badge">OBS RUST · 1080p</div>
       </div>
@@ -105,6 +105,12 @@ function updatePreview(stream?: MediaStream) {
 }
 function renderSources() {
   sourceCount.textContent = String(sources.length);
+  const overlay = $("sourceOverlay");
+  overlay.innerHTML = sources.filter(s => s.kind === "url" || s.kind === "text").map(s =>
+    s.kind === "text"
+      ? `<div class="text-overlay">${escapeHtml(s.value ?? "")}</div>`
+      : `<iframe class="url-overlay" src="${escapeHtml(s.value ?? "")}" title="Sumber browser" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+  ).join("");
   if (!sources.length) {
     sourceList.innerHTML = '<div class="empty-list">Belum ada sumber. Pilih salah satu di atas.</div>';
     return;
