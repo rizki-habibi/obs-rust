@@ -75,6 +75,8 @@ let currentScene = 0;
 let nextId = 1;
 let cameraStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
+let whipConnection: RTCPeerConnection | null = null;
+let whipResourceUrl: string | null = null;
 let recording: MediaRecorder | null = null;
 let recordedChunks: BlobPart[] = [];
 let pendingKind: "url" | "text" = "url";
@@ -203,7 +205,78 @@ $("saveTarget").addEventListener("click", () => {
   toast("Konfigurasi hanya digunakan dalam sesi browser ini. Output streaming belum tersambung.");
 });
 $("settingsBtn").addEventListener("click", () => $("youtubePanel").scrollIntoView({ behavior: "smooth", block: "center" }));
-$("startStream").addEventListener("click", () => toast("Output YouTube belum aktif. Hubungkan server media RTMP/WHIP terlebih dahulu."));
+async function stopWhip() {
+  whipConnection?.close();
+  whipConnection = null;
+  if (whipResourceUrl) {
+    try { await fetch(whipResourceUrl, { method: "DELETE" }); } catch { /* Endpoint may not support session deletion. */ }
+  }
+  whipResourceUrl = null;
+  $("startStream").textContent = "▶ Mulai siaran";
+  statusText.textContent = "SIAP SIARAN";
+  toast("Sesi siaran dihentikan.");
+}
+async function startWhip() {
+  const endpoint = ($("ingestUrl") as HTMLInputElement).value.trim();
+  if (!endpoint) return toast("Masukkan endpoint WHIP terlebih dahulu.");
+  let parsed: URL;
+  try { parsed = new URL(endpoint); } catch { return toast("Endpoint tidak valid."); }
+  if (parsed.protocol !== "https:") return toast("Endpoint siaran wajib menggunakan HTTPS.");
+  const localStream = video.srcObject as MediaStream | null;
+  if (!localStream || !localStream.getVideoTracks().length) return toast("Aktifkan kamera atau layar terlebih dahulu.");
+  const outgoing = new MediaStream([
+    ...localStream.getVideoTracks(),
+    ...(micStream?.getAudioTracks() ?? []),
+    ...localStream.getAudioTracks()
+  ]);
+  const uniqueTracks = new Set<string>();
+  const peer = new RTCPeerConnection();
+  whipConnection = peer;
+  outgoing.getTracks().forEach(track => {
+    if (!uniqueTracks.has(track.id)) { peer.addTrack(track, outgoing); uniqueTracks.add(track.id); }
+  });
+  try {
+    statusText.textContent = "MENGHUBUNGKAN";
+    $("startStream").textContent = "Menghubungkan…";
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    await new Promise<void>((resolve, reject) => {
+      if (peer.iceGatheringState === "complete") return resolve();
+      const timeout = window.setTimeout(() => reject(new Error("ICE gathering timeout")), 10000);
+      peer.addEventListener("icegatheringstatechange", () => {
+        if (peer.iceGatheringState === "complete") { window.clearTimeout(timeout); resolve(); }
+      });
+    });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/sdp", "Accept": "application/sdp" },
+      body: peer.localDescription?.sdp
+    });
+    if (!response.ok) throw new Error("Endpoint menolak koneksi (HTTP " + response.status + ").");
+    const answerSdp = await response.text();
+    await peer.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    const location = response.headers.get("Location");
+    whipResourceUrl = location ? new URL(location, endpoint).href : null;
+    statusText.textContent = "TERHUBUNG";
+    $("startStream").textContent = "■ Hentikan siaran";
+    toast("Terhubung ke endpoint WHIP. Pastikan server meneruskan siaran ke YouTube.");
+    peer.addEventListener("connectionstatechange", () => {
+      if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
+        statusText.textContent = "KONEKSI TERPUTUS";
+      }
+    });
+  } catch (error) {
+    peer.close();
+    if (whipConnection === peer) whipConnection = null;
+    statusText.textContent = "SIAP SIARAN";
+    $("startStream").textContent = "▶ Mulai siaran";
+    toast("Koneksi WHIP gagal: " + (error instanceof Error ? error.message : "periksa endpoint, CORS, dan server media."));
+  }
+}
+$("startStream").addEventListener("click", () => {
+  if (whipConnection) void stopWhip();
+  else void startWhip();
+});
 $("recordBtn").addEventListener("click", () => {
   const stream = video.srcObject as MediaStream | null;
   if (!stream) return toast("Aktifkan kamera atau layar sebelum merekam.");
