@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src/wasm/
+rust/target/
+.env
+.env.*
+!.env.example
+.DS_Store
