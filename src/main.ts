@@ -37,11 +37,11 @@ app.innerHTML = `
           <button class="source-action" id="urlBtn"><span>↗</span><b>URL web</b><small>Overlay / tautan</small></button>
           <button class="source-action" id="textBtn"><span>T</span><b>Teks</b><small>Overlay teks</small></button>
         </div>
-        <div class="source-list" id="sourceList"><div class="empty-list">Belum ada sumber. Pilih salah satu di atas.</div></div>
+        <div class="source-list" id="sourceList"><div class="empty-list">Belum ada sumber. Pilih salah satu di atas.</div></div><button class="button full" id="openLastLink">↗ Buka tautan web terakhir</button>
       </section>
       <section class="panel audio-panel">
         <div class="panel-title"><div><span class="eyebrow">SUARA</span><h3>Mixer audio</h3></div><span class="muted-pill">BROWSER</span></div>
-        <div class="audio-row"><div class="audio-icon">♫</div><div class="audio-info"><b>Mikrofon</b><small id="micStatus">Belum diaktifkan</small><div class="meter"><span id="audioMeter"></span></div></div><button class="square-btn" id="micBtn" title="Aktifkan mikrofon">＋</button></div>
+        <div class="audio-row"><div class="audio-icon">♫</div><div class="audio-info"><b>Mikrofon</b><small id="micStatus">Belum diaktifkan</small><div class="meter"><span id="audioMeter"></span></div><label class="volume-label" for="micVolume">Volume <span id="micVolumeValue">100%</span></label><input id="micVolume" class="volume-slider" type="range" min="0" max="150" value="100" /></div><button class="square-btn" id="micBtn" title="Aktifkan mikrofon">＋</button><button class="square-btn" id="muteMicBtn" title="Bisukan mikrofon" disabled>🔊</button></div><p class="hint">Audio mikrofon dapat diatur volumenya. Saat berbagi layar, pilih opsi audio sistem/tab jika browser menawarkannya.</p>
       </section>
       <section class="panel youtube-panel" id="youtubePanel">
         <div class="panel-title"><div><span class="eyebrow">TUJUAN SIARAN</span><h3>YouTube Live</h3></div><span class="youtube-icon">▶</span></div>
@@ -74,6 +74,12 @@ let scenes = ["Scene Utama"];
 let currentScene = 0;
 let nextId = 1;
 let micStream: MediaStream | null = null;
+let audioContext: AudioContext | null = null;
+let micGain: GainNode | null = null;
+let micDestination: MediaStreamAudioDestinationNode | null = null;
+let micAnalyser: AnalyserNode | null = null;
+let micMuted = false;
+let meterFrame = 0;
 let whipConnection: RTCPeerConnection | null = null;
 let whipResourceUrl: string | null = null;
 let recording: MediaRecorder | null = null;
@@ -81,6 +87,19 @@ let recordedChunks: BlobPart[] = [];
 let pendingKind: "url" | "text" = "url";
 let toastTimer = 0;
 
+function startAudioMeter() {
+  if (!micAnalyser) return;
+  const data = new Uint8Array(micAnalyser.frequencyBinCount);
+  const tick = () => {
+    if (!micAnalyser) return;
+    micAnalyser.getByteFrequencyData(data);
+    const average = data.reduce((sum, value) => sum + value, 0) / Math.max(data.length, 1);
+    $("audioMeter").style.width = Math.min(100, average * 1.8) + "%";
+    meterFrame = window.requestAnimationFrame(tick);
+  };
+  window.cancelAnimationFrame(meterFrame);
+  tick();
+}
 function toast(message: string) {
   const el = $("toast");
   el.textContent = message;
@@ -143,9 +162,21 @@ async function addMedia(kind: "camera" | "screen" | "mic") {
     if (kind === "mic") {
       micStream?.getTracks().forEach(t => t.stop());
       micStream = stream;
+      audioContext ??= new AudioContext();
+      await audioContext.resume();
+      micGain = audioContext.createGain();
+      micGain.gain.value = Number(($("micVolume") as HTMLInputElement).value) / 100;
+      micAnalyser = audioContext.createAnalyser();
+      micAnalyser.fftSize = 256;
+      micDestination = audioContext.createMediaStreamDestination();
+      audioContext.createMediaStreamSource(stream).connect(micGain);
+      micGain.connect(micAnalyser);
+      micAnalyser.connect(micDestination);
       $("micStatus").textContent = "Mikrofon aktif";
       $("micBtn").textContent = "✓";
-      toast("Mikrofon berhasil diaktifkan.");
+      $("muteMicBtn").removeAttribute("disabled");
+      startAudioMeter();
+      toast("Mikrofon aktif. Atur volume atau bisukan dari mixer.");
       return;
     }
     const item: SourceItem = { id: String(nextId++), name: kind === "camera" ? "Kamera" : "Berbagi layar", kind, stream };
@@ -176,6 +207,23 @@ $("cameraBtn").addEventListener("click", () => void addMedia("camera"));
 $("quickCamera").addEventListener("click", () => void addMedia("camera"));
 $("screenBtn").addEventListener("click", () => void addMedia("screen"));
 $("micBtn").addEventListener("click", () => void addMedia("mic"));
+$("micVolume").addEventListener("input", () => {
+  const value = Number(($("micVolume") as HTMLInputElement).value);
+  $("micVolumeValue").textContent = value + "%";
+  if (micGain) micGain.gain.value = micMuted ? 0 : value / 100;
+});
+$("muteMicBtn").addEventListener("click", () => {
+  if (!micGain) return;
+  micMuted = !micMuted;
+  micGain.gain.value = micMuted ? 0 : Number(($("micVolume") as HTMLInputElement).value) / 100;
+  $("muteMicBtn").textContent = micMuted ? "🔇" : "🔊";
+  $("micStatus").textContent = micMuted ? "Mikrofon dibisukan" : "Mikrofon aktif";
+});
+$("openLastLink").addEventListener("click", () => {
+  const lastLink = [...sources].reverse().find(s => s.kind === "url" && s.value);
+  if (!lastLink?.value) return toast("Tambahkan sumber URL web terlebih dahulu.");
+  window.open(lastLink.value, "_blank", "noopener,noreferrer");
+});
 $("urlBtn").addEventListener("click", () => openSourceDialog("url"));
 $("textBtn").addEventListener("click", () => openSourceDialog("text"));
 $("addSource").addEventListener("click", () => openSourceDialog("url"));
@@ -231,7 +279,7 @@ async function startWhip() {
   if (!localStream || !localStream.getVideoTracks().length) return toast("Aktifkan kamera atau layar terlebih dahulu.");
   const outgoing = new MediaStream([
     ...localStream.getVideoTracks(),
-    ...(micStream?.getAudioTracks() ?? []),
+    ...(micDestination?.stream.getAudioTracks() ?? []),
     ...localStream.getAudioTracks()
   ]);
   const uniqueTracks = new Set<string>();
@@ -312,4 +360,6 @@ renderScenes();
 window.addEventListener("beforeunload", () => {
   sources.forEach(s => s.stream?.getTracks().forEach(t => t.stop()));
   micStream?.getTracks().forEach(t => t.stop());
+  window.cancelAnimationFrame(meterFrame);
+  void audioContext?.close();
 });
