@@ -1,0 +1,16 @@
+{
+  "name": "obs-rust-web-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "build:wasm": "wasm-pack build rust --target web --out-dir ../src/wasm --out-name obs_rust_core"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
