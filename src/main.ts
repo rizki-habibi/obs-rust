@@ -73,7 +73,6 @@ let sources: SourceItem[] = [];
 let scenes = ["Scene Utama"];
 let currentScene = 0;
 let nextId = 1;
-let cameraStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
 let whipConnection: RTCPeerConnection | null = null;
 let whipResourceUrl: string | null = null;
@@ -313,5 +312,4 @@ renderScenes();
 window.addEventListener("beforeunload", () => {
   sources.forEach(s => s.stream?.getTracks().forEach(t => t.stop()));
   micStream?.getTracks().forEach(t => t.stop());
-  cameraStream?.getTracks().forEach(t => t.stop());
 });
