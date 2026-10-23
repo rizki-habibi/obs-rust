@@ -4,7 +4,7 @@ Studio streaming ringan berbasis web dengan UI bergaya OBS, dirancang memakai Ty
 
 ## Status
 
-Fondasi awal / MVP. Preview kamera dan layar berjalan di browser setelah izin diberikan. Output siaran langsung ke YouTube membutuhkan endpoint media yang kompatibel (RTMP/WHIP); Vercel digunakan untuk hosting aplikasi web, bukan sebagai encoder RTMP persisten.
+Fondasi awal / MVP. Preview kamera/layar, rekaman lokal WebM, scene dasar, overlay teks/URL, dan penerbitan WebRTC WHIP ke endpoint yang kompatibel tersedia. Untuk mencapai YouTube, endpoint WHIP harus terhubung ke server media yang meneruskan ke ingest YouTube. Vercel hanya meng-host aplikasi web, bukan encoder RTMP persisten.
 
 ## Fitur target
 
@@ -12,6 +12,7 @@ Fondasi awal / MVP. Preview kamera dan layar berjalan di browser setelah izin di
 - Scene dan daftar sumber
 - Teks overlay dan URL sumber browser
 - Panel konfigurasi YouTube Live
+- Penerbitan WebRTC WHIP ke endpoint media yang kompatibel
 - Modul Rust yang dapat dikompilasi ke WebAssembly
 - Deploy frontend ke Vercel
 
@@ -34,7 +35,7 @@ Untuk membangun modul Rust/WASM, instal Rust, target `wasm32-unknown-unknown`, d
 
 Impor repositori ini ke Vercel. Framework preset: Vite; build command: `npm run build`; output directory: `dist`.
 
-Tambahkan endpoint media yang Anda kendalikan sebagai konfigurasi deployment jika ingin mengaktifkan output streaming. Jangan menyimpan stream key YouTube di kode frontend, repository, atau log.
+Pada panel YouTube Live, isi endpoint WHIP HTTPS dari server media yang Anda kendalikan. Server media tersebut harus meneruskan/merelay stream ke YouTube melalui RTMP atau layanan ingest yang didukung. Endpoint harus mengizinkan permintaan browser (CORS) dan metode WHIP POST; jika server mengembalikan Location, aplikasi akan mencoba DELETE saat siaran dihentikan. Jangan masukkan stream key YouTube ke frontend atau repository.
 
 ## Catatan keamanan
 
