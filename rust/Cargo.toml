@@ -1,0 +1,12 @@
+[package]
+name = "obs-rust-core"
+version = "0.1.0"
+edition = "2021"
+description = "Browser-side helper core for OBS Rust Web Studio"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
