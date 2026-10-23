@@ -46,7 +46,7 @@ app.innerHTML = `
       <section class="panel youtube-panel" id="youtubePanel">
         <div class="panel-title"><div><span class="eyebrow">TUJUAN SIARAN</span><h3>YouTube Live</h3></div><span class="youtube-icon">▶</span></div>
         <label for="liveTitle">Judul siaran</label><input id="liveTitle" placeholder="Siaran langsung saya" />
-        <label for="ingestUrl">Endpoint media (RTMP/WHIP)</label><input id="ingestUrl" placeholder="https://media-server.example/whip/..." />
+        <label for="ingestUrl">Endpoint WHIP (HTTPS)</label><input id="ingestUrl" placeholder="https://media-server.example/whip" />
         <p class="hint">Endpoint harus mendukung protokol browser yang sesuai. YouTube RTMP biasa tidak bisa menerima koneksi langsung dari halaman web.</p>
         <button class="button full" id="saveTarget">Simpan konfigurasi di sesi ini</button>
         <div class="security-note">🔒 Jangan masukkan atau simpan stream key di halaman publik. Gunakan server media tepercaya untuk meneruskan siaran ke YouTube.</div>
